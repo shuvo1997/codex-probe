@@ -122,26 +122,6 @@ python examples/quickstart.py --backend openai \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 ```
 
-## `config` fields
-
-Everything is driven by one JSON-serializable dict. Only `backend_base_url` is
-required.
-
-| Field | Type | Default | Meaning |
-|-------|------|---------|---------|
-| `backend_base_url` | str **(required)** | — | The real backend to forward to, including its version path, e.g. `https://api.openai.com/v1` or `http://127.0.0.1:11434/v1`. `${ENV}` expanded. |
-| `listen_host` | str | `127.0.0.1` | Interface the proxy binds. Keep it loopback. |
-| `listen_port` | int | `8135` | Port to bind. `0` picks a free port; read it back from the returned `endpoint`. |
-| `endpoint_path` | str | `/v1` | Local mount prefix. An incoming `/v1/chat/completions` is mapped onto `backend_base_url + /chat/completions`. |
-| `log_dir` | str | `./codex_probe_logs` | Directory for the per-session JSONL file. |
-| `session_name` | str \| null | timestamp | Base name of the JSONL file; one file per `start()`/`stop()`. |
-| `forward_headers` | bool | `true` | Forward the client's own headers upstream (minus hop-by-hop + `Host`/`Content-Length`). |
-| `inject_headers` | dict[str,str] | `{}` | Extra headers added upstream, e.g. `{"Authorization": "Bearer ${OPENAI_API_KEY}"}` for a backend Codex won't auth to itself. `${ENV}` expanded. |
-| `redact_auth` | bool | `true` | Blank sensitive header values **in the log only** (still forwarded upstream). |
-| `redact_header_names` | list[str] | `authorization, api-key, x-api-key, openai-api-key` | Which header values to blank in the log. |
-| `seed` | int \| null | `null` | Echoed into every log entry for reproducibility bookkeeping. **Not injected** into requests — that would violate faithful passthrough. |
-| `connect_timeout` | float | `30.0` | Upstream connect timeout (seconds). The read timeout is unbounded so long/idle streams are never cut. |
-
 ## What a captured call looks like
 
 Each entry in `calls` (and each JSONL line) has this shape:
