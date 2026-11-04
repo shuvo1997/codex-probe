@@ -44,11 +44,13 @@ without any external service.
 and either an `OPENAI_API_KEY` or a local Ollama):
 
 ```bash
-# against OpenAI
-OPENAI_API_KEY=sk-... python examples/quickstart.py --backend openai \
+# against OpenAI — export your real key first (get one at
+# https://platform.openai.com/api-keys). Never hard-code or commit it.
+export OPENAI_API_KEY="sk-your-real-key-here"
+python examples/quickstart.py --backend openai \
   --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
 
-# against a self-hosted model (config-only swap — same recorder, same logs)
+# against a self-hosted model (config-only swap — same recorder, same logs; no key)
 python examples/quickstart.py --backend ollama \
   --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
 ```
@@ -113,8 +115,10 @@ python examples/quickstart.py
 python examples/quickstart.py --backend ollama \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 
-# same task, OpenAI backend (needs OPENAI_API_KEY) — the config-only swap
-OPENAI_API_KEY=sk-... python examples/quickstart.py --backend openai \
+# same task, OpenAI backend — the config-only swap. Export your real key first
+# (https://platform.openai.com/api-keys); never hard-code or commit it.
+export OPENAI_API_KEY="sk-your-real-key-here"
+python examples/quickstart.py --backend openai \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 ```
 
