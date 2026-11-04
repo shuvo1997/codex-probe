@@ -16,6 +16,48 @@ extension point, and:
 It works as a proxy at the `base_url` extension point, so it needs **no patch to
 Codex's Rust source**.
 
+## Try it in 2 minutes (for reviewers)
+
+No API key, no Codex install, no model download needed for the first two steps —
+they run entirely offline against a built-in mock backend.
+
+```bash
+# 1. clone and install (Python 3.9+)
+git clone https://github.com/shuvo1997/codex-probe.git
+cd codex-probe
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# 2. run the test suite — proves correctness (19 tests, ~4s, offline)
+pytest -q
+
+# 3. see the full record -> live-relay -> reassemble flow end to end (offline)
+python examples/quickstart.py
+```
+
+Step 3 starts the proxy, sends a streaming call through it (a mock backend stands
+in for Codex's LLM), and prints the captured JSONL record — so you can see exactly
+what the recorder logs, and that the stream was relayed live then reassembled,
+without any external service.
+
+**To see it in front of the real Codex CLI** (optional — needs the `codex` binary
+and either an `OPENAI_API_KEY` or a local Ollama):
+
+```bash
+# against OpenAI
+OPENAI_API_KEY=sk-... python examples/run_codex.py --backend openai \
+  --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
+
+# against a self-hosted model (config-only swap — same recorder, same logs)
+python examples/run_codex.py --backend ollama \
+  --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
+```
+
+Either way it writes `codex_probe_logs/codex-<backend>.jsonl` — one ordered line
+per LLM call. A pre-captured example is committed at `examples/sample_capture.jsonl`
+if you'd rather just read the log format. The full captured results (including the
+OSS tool-calling findings) are in [End-to-end run](#end-to-end-run-captured-results-local-qwen).
+
 ## Install
 
 ```bash
@@ -118,7 +160,7 @@ touching your real config, use a throwaway `CODEX_HOME`:
 export CODEX_HOME="$(mktemp -d)"
 cat > "$CODEX_HOME/config.toml" <<'TOML'
 model_provider = "probe"
-model = "qwen2.5-coder:7b"
+model = "qwen3:8b"
 
 [model_providers.probe]
 name = "CodexProbe"
