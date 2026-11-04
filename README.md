@@ -45,11 +45,11 @@ and either an `OPENAI_API_KEY` or a local Ollama):
 
 ```bash
 # against OpenAI
-OPENAI_API_KEY=sk-... python examples/run_codex.py --backend openai \
+OPENAI_API_KEY=sk-... python examples/quickstart.py --backend openai \
   --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
 
 # against a self-hosted model (config-only swap — same recorder, same logs)
-python examples/run_codex.py --backend ollama \
+python examples/quickstart.py --backend ollama \
   --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
 ```
 
@@ -87,12 +87,13 @@ calls = recorder.stop()       # list[dict], one entry per LLM call, in order
 
 Examples included — note which are a *demo* vs a *real captured result*:
 
-- `examples/quickstart.py` — **offline demo, not a real LLM result.** Uses a
-  built-in mock backend returning a canned response, purely to show the
-  record → relay → reassemble flow works without any external service.
-- `examples/run_codex.py` — drives the **real** `codex` CLI through the recorder
-  against either backend (`--backend openai|ollama`); writes a throwaway
-  `CODEX_HOME` so your own Codex config is untouched. **This produces real results.**
+- `examples/quickstart.py` — one script, three modes via `--backend`:
+  - *(default, no args)* **offline demo** — a built-in mock backend + one call
+    through the recorder, to show the record → relay → reassemble flow with no
+    external service. Not a real LLM result.
+  - `--backend openai` / `--backend ollama` — drive the **real** `codex` CLI
+    through the recorder against that backend (the config-only swap); writes a
+    throwaway `CODEX_HOME` so your own Codex config is untouched. **Real results.**
 - `examples/sample_capture_codex_qwen3.jsonl` — a **real captured run**: the two
   LLM calls from Codex driving local `qwen3:8b` on the task *"Explain what
   ProxyRecorder does."* Call 1 is a working `exec_command` tool call; call 2 is
@@ -108,13 +109,12 @@ Both `.jsonl` samples are auth-free (Ollama needs no key).
 python examples/quickstart.py
 
 # real run against local Qwen — reads an actual file in this repo and explains it.
-# --backend defaults to ollama; --cd defaults to this repo root. Logs land in
-# codex_probe_logs/codex-ollama.jsonl.
-python examples/run_codex.py --backend ollama \
+# --cd defaults to this repo root. Logs land in codex_probe_logs/codex-ollama.jsonl.
+python examples/quickstart.py --backend ollama \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 
 # same task, OpenAI backend (needs OPENAI_API_KEY) — the config-only swap
-OPENAI_API_KEY=sk-... python examples/run_codex.py --backend openai \
+OPENAI_API_KEY=sk-... python examples/quickstart.py --backend openai \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 ```
 
@@ -344,7 +344,7 @@ Upgrading Ollama (`brew upgrade ollama`, 0.16.3 → 0.40.14) fixed the empty-nam
 bug. qwen3:8b now emits a well-formed call that Codex accepts and executes:
 
 ```
-$ python examples/run_codex.py --backend ollama --cd /tmp/work \
+$ python examples/quickstart.py --backend ollama --cd /tmp/work \
     "Explain what ProxyRecorder does."
 [probe] recorded 2 LLM call(s) -> codex_probe_logs/codex-ollama.jsonl
   #1 200 model=qwen3:8b via http://127.0.0.1:11434/v1/responses (42598 ms)
