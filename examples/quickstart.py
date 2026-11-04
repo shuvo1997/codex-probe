@@ -1,12 +1,19 @@
-"""Runnable quickstart for CodexProbe.
+"""Runnable quickstart for CodexProbe — OFFLINE DEMO (not a real LLM result).
 
 This runs with no external services: it stands up a tiny mock OpenAI-compatible
-backend, puts the recorder in front of it, fires one request through (standing
-in for Codex), and prints the captured call plus where the JSONL log landed.
+backend returning a canned response, puts the recorder in front of it, fires one
+request through (standing in for Codex), and prints the captured call plus where
+the JSONL log landed. Its only job is to show the record -> live-relay ->
+reassemble machinery works, with zero setup.
 
-For the real thing, you replace the mock backend URL with OpenAI or a local
-Ollama/vLLM server and point Codex's `model_providers.<name>.base_url` at the
-`endpoint` the recorder returns — see the README.
+For a REAL end-to-end result (the actual `codex` CLI against OpenAI or a local
+Qwen/Ollama backend, swapped by config alone), use the companion script:
+
+    python examples/run_codex.py --backend openai --cd /tmp/work "<task>"
+    python examples/run_codex.py --backend ollama --cd /tmp/work "<task>"
+
+A pre-captured real run is committed at examples/sample_capture_codex_qwen3.jsonl.
+See the README for the full walkthrough and captured results.
 
     python examples/quickstart.py
 """
