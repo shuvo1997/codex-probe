@@ -54,9 +54,11 @@ python examples/run_codex.py --backend ollama \
 ```
 
 Either way it writes `codex_probe_logs/codex-<backend>.jsonl` — one ordered line
-per LLM call. A pre-captured example is committed at `examples/sample_capture.jsonl`
-if you'd rather just read the log format. The full captured results (including the
-OSS tool-calling findings) are in [End-to-end run](#end-to-end-run-captured-results-local-qwen).
+per LLM call. **If you'd rather just read a real result without installing
+anything, open `examples/sample_capture_codex_qwen3.jsonl`** — the two real LLM
+calls from Codex driving local `qwen3:8b` end to end (a working tool call, then
+the final answer). The full captured results (including the OSS tool-calling
+findings) are in [End-to-end run](#end-to-end-run-captured-results-local-qwen).
 
 ## Install
 
@@ -83,16 +85,23 @@ calls = recorder.stop()       # list[dict], one entry per LLM call, in order
 
 `ProxyRecorder` is also a context manager (`with ProxyRecorder(cfg) as rec: ...`).
 
-Two examples are included:
+Examples included — note which are a *demo* vs a *real captured result*:
 
-- `examples/quickstart.py` — self-contained demo, **no external services**; uses
-  a built-in mock backend to show the full record → relay → reassemble flow.
+- `examples/quickstart.py` — **offline demo, not a real LLM result.** Uses a
+  built-in mock backend returning a canned response, purely to show the
+  record → relay → reassemble flow works without any external service.
 - `examples/run_codex.py` — drives the **real** `codex` CLI through the recorder
   against either backend (`--backend openai|ollama`); writes a throwaway
-  `CODEX_HOME` so your own Codex config is untouched.
-- `examples/sample_capture.jsonl` — a real captured call from the 7b run below
-  (auth-free, as Ollama needs no key), so you can see the log format without
-  running anything.
+  `CODEX_HOME` so your own Codex config is untouched. **This produces real results.**
+- `examples/sample_capture_codex_qwen3.jsonl` — a **real captured run**: the two
+  LLM calls from Codex driving local `qwen3:8b` on the task *"Explain what
+  ProxyRecorder does."* Call 1 is a working `exec_command` tool call; call 2 is
+  Codex's final answer after reading the file. Read this to see a genuine
+  agentic loop end to end, no setup required.
+- `examples/sample_capture.jsonl` — a single real captured call from the older
+  `qwen2.5-coder:7b` run (shows the malformed tool-call divergence; see below).
+
+Both `.jsonl` samples are auth-free (Ollama needs no key).
 
 ```bash
 python examples/quickstart.py
