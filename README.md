@@ -122,6 +122,18 @@ python examples/quickstart.py --backend openai \
   "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 ```
 
+## Key config fields
+
+The recorder is driven by one JSON-serializable dict; only `backend_base_url` is
+required. The fields that matter most (full list is in `config.py`):
+
+| Field | Default | Why it's there |
+|-------|---------|----------------|
+| `backend_base_url` | *(required)* | The real backend to forward to — this is the whole backend swap. `https://api.openai.com/v1` or `http://127.0.0.1:11434/v1`. `${ENV}` expanded. |
+| `inject_headers` | `{}` | Add upstream auth without putting the secret in config, e.g. `{"Authorization": "Bearer ${OPENAI_API_KEY}"}` — `${ENV}` is read from the environment. |
+| `redact_auth` | `true` | Blanks sensitive header values **in the log only** (still forwarded upstream), so captured logs are safe to share. |
+| `seed` | `null` | Echoed into each log entry for bookkeeping — **never injected** into requests, which would break faithful passthrough. |
+
 ## What a captured call looks like
 
 Each entry in `calls` (and each JSONL line) has this shape:
