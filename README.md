@@ -104,8 +104,18 @@ Examples included — note which are a *demo* vs a *real captured result*:
 Both `.jsonl` samples are auth-free (Ollama needs no key).
 
 ```bash
+# offline demo (mock backend)
 python examples/quickstart.py
-python examples/run_codex.py --backend ollama "add a docstring to utils.py"
+
+# real run against local Qwen — reads an actual file in this repo and explains it.
+# --backend defaults to ollama; --cd defaults to this repo root. Logs land in
+# codex_probe_logs/codex-ollama.jsonl.
+python examples/run_codex.py --backend ollama \
+  "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
+
+# same task, OpenAI backend (needs OPENAI_API_KEY) — the config-only swap
+OPENAI_API_KEY=sk-... python examples/run_codex.py --backend openai \
+  "Read src/codex_probe/recorder.py and explain in 5 bullet points what ProxyRecorder does and how it streams responses."
 ```
 
 ## `config` fields
@@ -208,12 +218,22 @@ codex exec "write a Python function that reverses a string"
 
 vLLM needs an NVIDIA GPU, so on a Mac use Ollama. Current Ollama exposes
 `POST /v1/responses` (non-stateful), which is exactly the endpoint current Codex
-uses — so the swap is a true passthrough, no translation needed:
+uses — so the swap is a true passthrough, no translation needed.
 
 ```bash
+# 1. install Ollama (macOS). Needs 0.40.14+ — see the note below.
+brew install ollama            # or download from https://ollama.com/download
+ollama --version               # confirm >= 0.40.14
+
+# 2. start the server (leave this running in its own terminal)
 OLLAMA_CONTEXT_LENGTH=32768 ollama serve   # server on :11434, large context (see note)
-ollama pull qwen3:8b                         # ~5.2 GB; drives Codex end-to-end
+
+# 3. pull the model (in another terminal)
+ollama pull qwen3:8b           # ~5.2 GB; drives Codex end-to-end
 ```
+
+You also need the Codex CLI itself for the real run: `npm i -g @openai/codex`
+(or `brew install codex`).
 
 > **Use Ollama 0.40.14+ and `qwen3:8b` for working tool-calling.** The
 > `qwen2.5-coder` variants emit text-embedded tool calls Codex can't act on, and
