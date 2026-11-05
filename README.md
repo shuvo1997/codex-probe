@@ -257,13 +257,6 @@ smaller variant trades tool-calling reliability; 14b/32b want >16 GB.
 > (`OLLAMA_CONTEXT_LENGTH`, or a Modelfile `num_ctx`) — not in the request, which
 > would break faithful passthrough.
 
-### vLLM (Linux + NVIDIA GPU)
-
-```bash
-vllm serve Qwen/Qwen2.5-Coder-7B-Instruct --port 8000
-# backend_base_url = http://127.0.0.1:8000/v1
-```
-
 ### Verifying the swap actually happened
 
 After a run, check the log:
