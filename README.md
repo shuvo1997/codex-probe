@@ -47,12 +47,10 @@ and either an `OPENAI_API_KEY` or a local Ollama):
 # against OpenAI — export your real key first (get one at
 # https://platform.openai.com/api-keys). Never hard-code or commit it.
 export OPENAI_API_KEY="sk-your-real-key-here"
-python examples/quickstart.py --backend openai \
-  --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
+python examples/quickstart.py --backend openai
 
 # against a self-hosted model (config-only swap — same recorder, same logs; no key)
-python examples/quickstart.py --backend ollama \
-  --cd /tmp/work "Create reverse.py with reverse(s) and print reverse('hello')."
+python examples/quickstart.py --backend ollama
 ```
 
 Either way it writes `codex_probe_logs/codex-<backend>.jsonl` — one ordered line
