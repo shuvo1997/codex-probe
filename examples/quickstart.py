@@ -22,22 +22,20 @@ For (a)/(b) you need the `codex` CLI on PATH (`npm i -g @openai/codex` or
 examples/sample_capture_codex_qwen3.jsonl. See the README for the full walkthrough.
 """
 
-import argparse     # parse --backend / --cd / --sandbox / prompt
-import json         # pretty-print the captured call in the demo
-import os           # build the child env (CODEX_HOME) and join paths
-import shutil       # shutil.which() to check the codex CLI is installed
-import subprocess   # run the real `codex exec` process
-import sys          # propagate the exit code
-import tempfile     # throwaway CODEX_HOME so the user's real config is untouched
-import threading    # run the mock backend in a background thread (demo only)
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # mock backend
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import httpx        # stands in for Codex in the offline demo
+import httpx
 
-from codex_probe import ProxyRecorder  # the thing we're demonstrating
+from codex_probe import ProxyRecorder
 
-# Real-backend presets. Only backend_base_url/inject_headers/model differ —
-# everything else about the recorder (and the logs) is identical across backends.
 BACKENDS = {
     "openai": {
         "backend_base_url": "https://api.openai.com/v1",
@@ -51,8 +49,6 @@ BACKENDS = {
     },
 }
 
-# A self-demonstrating default task for the real backends: Codex reads this very
-# repo and explains the recorder, so the run exercises a real tool-calling loop.
 DEFAULT_PROMPT = (
     "Read src/codex_probe/recorder.py and explain in 5 bullet points what "
     "ProxyRecorder does and how it streams responses."
@@ -60,11 +56,8 @@ DEFAULT_PROMPT = (
 
 
 # --------------------------------------------------------------------------- #
-# (0) Offline demo: a canned mock backend + one streamed call through the proxy #
 # --------------------------------------------------------------------------- #
 
-# A canned SSE stream the mock returns: one content chunk then [DONE] — the shape
-# of a real Chat Completions stream.
 _SSE = (
     'data: {"id":"c1","model":"demo-coder","choices":[{"index":0,'
     '"delta":{"role":"assistant","content":"print(\\"hi\\")"}}]}\n\n'
@@ -74,14 +67,14 @@ _SSE = (
 
 
 class _MockBackend(BaseHTTPRequestHandler):
-    def log_message(self, *_):  # silence per-request stderr logging
+    def log_message(self, *_):
         pass
 
-    def do_POST(self):  # noqa: N802  (http.server requires this method name)
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))  # drain body
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
         body = _SSE.encode()
         self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")  # it's an SSE stream
+        self.send_header("Content-Type", "text/event-stream")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -89,39 +82,37 @@ class _MockBackend(BaseHTTPRequestHandler):
 
 def run_demo() -> int:
     """Offline: record -> live-relay -> reassemble, no external services."""
-    # Stand up the mock backend on a random free port, in a background thread.
     backend = ThreadingHTTPServer(("127.0.0.1", 0), _MockBackend)
     threading.Thread(target=backend.serve_forever, daemon=True).start()
     host, port = backend.server_address[:2]
 
     recorder = ProxyRecorder(
         {
-            "backend_base_url": f"http://{host}:{port}/v1",  # swap for OpenAI/Ollama
+            "backend_base_url": f"http://{host}:{port}/v1",
             "listen_port": 0,
             "log_dir": "./codex_probe_logs",
             "session_name": "quickstart",
         }
     )
-    endpoint = recorder.start()  # start proxy; get the URL Codex would use
+    endpoint = recorder.start()
     print(f"Recorder endpoint (put this in Codex config.toml base_url): {endpoint}\n")
 
-    # Stand in for Codex making a streamed chat-completions call.
     with httpx.stream("POST", f"{endpoint}/chat/completions",
                       json={"model": "demo-coder",
                             "messages": [{"role": "user", "content": "say hi in python"}],
                             "stream": True}) as r:
-        streamed = "".join(r.iter_text())  # consume the live stream as a client would
+        streamed = "".join(r.iter_text())
     print("What Codex received (live stream), first line:")
     print("   " + streamed.splitlines()[0] + "\n")
 
-    calls = recorder.stop()  # stop proxy; get the recorded calls
-    backend.shutdown()       # stop the mock backend
+    calls = recorder.stop()
+    backend.shutdown()
 
     call = calls[0]
     print("What CodexProbe recorded:")
     print(f"   backend served : {call['response_model']}  via  {call['backend_url']}")
     print(f"   latency_ms     : {call['latency_ms']}")
-    print(f"   reassembled    : "  # streamed chunks reassembled into one message
+    print(f"   reassembled    : "
           f"{call['response_body']['choices'][0]['message']['content']!r}")
     print(f"\nFull call as JSON written to: {recorder.log_path}")
     print(json.dumps(call, indent=2)[:600] + " ...")
@@ -129,7 +120,6 @@ def run_demo() -> int:
 
 
 # --------------------------------------------------------------------------- #
-# (a)/(b) Real run: drive the actual `codex` CLI through the recorder           #
 # --------------------------------------------------------------------------- #
 
 def run_codex(backend: str, cd: str, sandbox: str, prompt: str) -> int:
@@ -141,37 +131,36 @@ def run_codex(backend: str, cd: str, sandbox: str, prompt: str) -> int:
     preset = BACKENDS[backend]
     recorder = ProxyRecorder(
         {
-            "backend_base_url": preset["backend_base_url"],  # where to forward
-            "inject_headers": preset["inject_headers"],      # e.g. OpenAI key (none for Ollama)
-            "listen_port": 0,                                # OS picks a free port
+            "backend_base_url": preset["backend_base_url"],
+            "inject_headers": preset["inject_headers"],
+            "listen_port": 0,
             "log_dir": "./codex_probe_logs",
-            "session_name": f"codex-{backend}",              # one file per backend
+            "session_name": f"codex-{backend}",
         }
     )
     endpoint = recorder.start()
     print(f"[probe] recording {backend} backend; endpoint = {endpoint}")
 
-    # Throwaway CODEX_HOME so we never touch the user's real ~/.codex config.
     codex_home = tempfile.mkdtemp(prefix="codex_home_")
     with open(os.path.join(codex_home, "config.toml"), "w") as f:
         f.write(
-            f'model_provider = "probe"\n'            # make "probe" the active provider
-            f'model = "{preset["model"]}"\n\n'       # the model id to request
+            f'model_provider = "probe"\n'
+            f'model = "{preset["model"]}"\n\n'
             f'[model_providers.probe]\n'
             f'name = "CodexProbe"\n'
-            f'base_url = "{endpoint}"\n'             # <-- Codex -> recorder
-            f'wire_api = "responses"\n'             # current Codex only supports Responses
+            f'base_url = "{endpoint}"\n'
+            f'wire_api = "responses"\n'
         )
 
     try:
         subprocess.run(
-            ["codex", "exec", "--skip-git-repo-check",       # allow running outside a git repo
-             "-s", sandbox, "-C", cd, prompt],              # sandbox, workdir, task
-            env={**os.environ, "CODEX_HOME": codex_home},   # point Codex at the throwaway config
+            ["codex", "exec", "--skip-git-repo-check",
+             "-s", sandbox, "-C", cd, prompt],
+            env={**os.environ, "CODEX_HOME": codex_home},
             check=False,
         )
     finally:
-        calls = recorder.stop()  # always stop the recorder, even if codex errored
+        calls = recorder.stop()
 
     print(f"\n[probe] recorded {len(calls)} LLM call(s) -> {recorder.log_path}")
     for c in calls:

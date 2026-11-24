@@ -6,18 +6,14 @@ validation errors are raised early with a clear message instead of blowing up
 deep inside the proxy loop.
 """
 
-# Enable modern annotation syntax (e.g. `str | None`) regardless of Python version.
 from __future__ import annotations
 
-import os  # for environment-variable expansion of ${VARS} in config values
-from dataclasses import dataclass, field, asdict  # the typed config container + helpers
-from typing import Any  # loose typing for the incoming raw dict
+import os
+from dataclasses import dataclass, field, asdict
+from typing import Any
 
-# Hop-by-hop headers must never be forwarded between the two connections
-# (client<->proxy and proxy<->backend); they describe a single hop only.
-# https://www.rfc-editor.org/rfc/rfc9110#section-7.6.1
 HOP_BY_HOP = frozenset(
-    h.lower()  # store lower-cased so lookups are case-insensitive
+    h.lower()
     for h in (
         "connection",
         "keep-alive",
@@ -27,13 +23,11 @@ HOP_BY_HOP = frozenset(
         "trailer",
         "transfer-encoding",
         "upgrade",
-        "host",            # must be set from the *upstream* URL, not copied
-        "content-length",  # recomputed per hop (and we stream with chunked framing)
+        "host",
+        "content-length",
     )
 )
 
-# Default header names whose *values* are blanked in the logs (but still
-# forwarded upstream unchanged). Keeps bearer tokens out of the JSONL on disk.
 DEFAULT_REDACT = ("authorization", "api-key", "x-api-key", "openai-api-key")
 
 
@@ -46,35 +40,35 @@ class Config:
     """
 
     # --- the one required field ---
-    backend_base_url: str  # real backend to forward to, incl. version path (".../v1")
+    backend_base_url: str
 
     # --- networking / where the proxy listens ---
-    listen_host: str = "127.0.0.1"  # loopback by default (don't expose the proxy)
-    listen_port: int = 8135  # 0 => OS picks a free port, read back after start()
-    endpoint_path: str = "/v1"  # local mount prefix mapped onto backend_base_url
+    listen_host: str = "127.0.0.1"
+    listen_port: int = 8135
+    endpoint_path: str = "/v1"
 
     # --- logging ---
-    log_dir: str = "./codex_probe_logs"  # directory for the per-session JSONL file
-    session_name: str | None = None  # label for the per-session JSONL file (else timestamp)
+    log_dir: str = "./codex_probe_logs"
+    session_name: str | None = None
 
     # --- header handling ---
-    forward_headers: bool = True  # forward the client's own headers upstream
-    inject_headers: dict[str, str] = field(default_factory=dict)  # extra upstream headers
-    redact_auth: bool = True  # blank sensitive header values in the log
-    redact_header_names: tuple[str, ...] = DEFAULT_REDACT  # which names to blank
+    forward_headers: bool = True
+    inject_headers: dict[str, str] = field(default_factory=dict)
+    redact_auth: bool = True
+    redact_header_names: tuple[str, ...] = DEFAULT_REDACT
 
     # --- misc ---
-    seed: int | None = None  # echoed into logs only; never injected into requests
-    connect_timeout: float = 30.0  # upstream connect timeout (read timeout is unbounded)
+    seed: int | None = None
+    connect_timeout: float = 30.0
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable echo of the config (for the logs)."""
-        return asdict(self)  # dataclass -> plain dict
+        return asdict(self)
 
 
 def _expand_env(value: str) -> str:
     """Expand ``${VAR}`` / ``$VAR`` references so secrets stay in the env."""
-    return os.path.expandvars(value)  # leaves unknown vars untouched
+    return os.path.expandvars(value)
 
 
 def load_config(config: dict[str, Any]) -> Config:
@@ -86,11 +80,9 @@ def load_config(config: dict[str, Any]) -> Config:
         On any missing required field or out-of-range / wrong-typed value, with
         a message naming the offending field.
     """
-    # The config must be a dict (JSON object), not a list/str/etc.
     if not isinstance(config, dict):
         raise ValueError(f"config must be a dict, got {type(config).__name__}")
 
-    # Reject typos/unknown keys early instead of silently ignoring them.
     unknown = set(config) - {f for f in Config.__dataclass_fields__}
     if unknown:
         raise ValueError(f"unknown config field(s): {sorted(unknown)}")
@@ -99,7 +91,7 @@ def load_config(config: dict[str, Any]) -> Config:
     url = config.get("backend_base_url")
     if not isinstance(url, str) or not url.strip():
         raise ValueError("backend_base_url is required and must be a non-empty string")
-    url = _expand_env(url).rstrip("/")  # expand env, drop trailing slash to avoid "//"
+    url = _expand_env(url).rstrip("/")
     if not url.startswith(("http://", "https://")):
         raise ValueError("backend_base_url must start with http:// or https://")
 
@@ -112,7 +104,7 @@ def load_config(config: dict[str, Any]) -> Config:
     path = config.get("endpoint_path", "/v1")
     if not isinstance(path, str) or not path.startswith("/"):
         raise ValueError("endpoint_path must be a string beginning with '/'")
-    path = "/" + path.strip("/") if path.strip("/") else ""  # collapse "/", strip extra slashes
+    path = "/" + path.strip("/") if path.strip("/") else ""
 
     # --- inject_headers: must be a flat dict[str, str]; expand env in values ---
     inject = config.get("inject_headers", {}) or {}
@@ -120,7 +112,7 @@ def load_config(config: dict[str, Any]) -> Config:
         isinstance(k, str) and isinstance(v, str) for k, v in inject.items()
     ):
         raise ValueError("inject_headers must be a dict[str, str]")
-    inject = {k: _expand_env(v) for k, v in inject.items()}  # e.g. "Bearer ${OPENAI_API_KEY}"
+    inject = {k: _expand_env(v) for k, v in inject.items()}
 
     # --- seed: optional int (bool excluded) ---
     seed = config.get("seed")
@@ -132,7 +124,6 @@ def load_config(config: dict[str, Any]) -> Config:
     if not all(isinstance(n, str) for n in redact_names):
         raise ValueError("redact_header_names must be a list of strings")
 
-    # Build the normalized Config (all values validated/coerced above).
     return Config(
         backend_base_url=url,
         listen_host=str(config.get("listen_host", "127.0.0.1")),
@@ -143,7 +134,7 @@ def load_config(config: dict[str, Any]) -> Config:
         forward_headers=bool(config.get("forward_headers", True)),
         inject_headers=inject,
         redact_auth=bool(config.get("redact_auth", True)),
-        redact_header_names=tuple(n.lower() for n in redact_names),  # lower-cased for matching
+        redact_header_names=tuple(n.lower() for n in redact_names),
         seed=seed,
         connect_timeout=float(config.get("connect_timeout", 30.0)),
     )
