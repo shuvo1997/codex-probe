@@ -213,7 +213,7 @@ class ProxyRecorder:
         if not decoded:
             response_body = None
         elif streamed:
-            response_body = reassemble(decoded, handler.path)
+            response_body = reassemble(decoded)
         else:
             response_body = _maybe_json(decoded)
 

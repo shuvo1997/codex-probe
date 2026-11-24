@@ -59,10 +59,11 @@ DEFAULT_PROMPT = (
 # --------------------------------------------------------------------------- #
 
 _SSE = (
-    'data: {"id":"c1","model":"demo-coder","choices":[{"index":0,'
-    '"delta":{"role":"assistant","content":"print(\\"hi\\")"}}]}\n\n'
-    'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
-    'data: [DONE]\n\n'
+    'event: response.output_text.delta\n'
+    'data: {"type":"response.output_text.delta","delta":"print(\\"hi\\")"}\n\n'
+    'event: response.completed\n'
+    'data: {"type":"response.completed","response":{"id":"r_demo","model":"demo-coder",'
+    '"output":[{"type":"message","content":[{"type":"output_text","text":"print(\\"hi\\")"}]}]}}\n\n'
 )
 
 
@@ -97,9 +98,9 @@ def run_demo() -> int:
     endpoint = recorder.start()
     print(f"Recorder endpoint (put this in Codex config.toml base_url): {endpoint}\n")
 
-    with httpx.stream("POST", f"{endpoint}/chat/completions",
+    with httpx.stream("POST", f"{endpoint}/responses",
                       json={"model": "demo-coder",
-                            "messages": [{"role": "user", "content": "say hi in python"}],
+                            "input": "say hi in python",
                             "stream": True}) as r:
         streamed = "".join(r.iter_text())
     print("What Codex received (live stream), first line:")
@@ -109,14 +110,22 @@ def run_demo() -> int:
     backend.shutdown()
 
     call = calls[0]
+    text = _output_text(call["response_body"])
     print("What CodexProbe recorded:")
     print(f"   backend served : {call['response_model']}  via  {call['backend_url']}")
     print(f"   latency_ms     : {call['latency_ms']}")
-    print(f"   reassembled    : "
-          f"{call['response_body']['choices'][0]['message']['content']!r}")
+    print(f"   reassembled    : {text!r}")
     print(f"\nFull call as JSON written to: {recorder.log_path}")
     print(json.dumps(call, indent=2)[:600] + " ...")
     return 0
+
+
+def _output_text(response_body) -> str:
+    """Pull the assistant text out of a reassembled Responses object (for display)."""
+    for item in (response_body or {}).get("output", []):
+        if item.get("type") == "message":
+            return "".join(c.get("text", "") for c in item.get("content", []))
+    return "(no message text; see response_body)"
 
 
 # --------------------------------------------------------------------------- #

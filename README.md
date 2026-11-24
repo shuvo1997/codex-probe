@@ -141,16 +141,16 @@ Each entry in `calls` (and each JSONL line) has this shape:
   "index": 1,
   "timestamp": "2026-11-03T22:19:06+00:00",
   "method": "POST",
-  "path": "/v1/chat/completions",
-  "backend_url": "http://127.0.0.1:11434/v1/chat/completions",
+  "path": "/v1/responses",
+  "backend_url": "http://127.0.0.1:11434/v1/responses",
   "request_headers": {"Authorization": "<redacted>", "...": "..."},
-  "request_body": { "model": "...", "messages": [...], "tools": [...] },
+  "request_body": { "model": "...", "input": [...], "tools": [...] },
   "response_status": 200,
   "response_headers": {"content-type": "text/event-stream"},
-  "response_model": "qwen2.5-coder:7b",
+  "response_model": "qwen3:8b",
   "streamed": true,
-  "response_body": { "choices": [{"message": {"role": "assistant", "content": "...", "tool_calls": [...]}, "finish_reason": "stop"}] },
-  "response_raw": "data: {...}\n\ndata: [DONE]\n\n",
+  "response_body": { "id": "...", "model": "qwen3:8b", "output": [{"type": "reasoning", "...": "..."}, {"type": "function_call", "name": "exec_command", "arguments": "..."}] },
+  "response_raw": "event: response.created\ndata: {...}\n\nevent: response.completed\ndata: {...}\n\n",
   "latency_ms": 812.4,
   "error": null,
   "seed": 1234
@@ -158,7 +158,7 @@ Each entry in `calls` (and each JSONL line) has this shape:
 ```
 
 - `request_body` is the **complete** payload Codex sent (full history + tool schema).
-- `response_body` is the response reassembled into the non-streaming shape.
+- `response_body` is the streamed response reassembled into the full (non-streaming) object.
 - `response_raw` keeps the **unabridged** SSE text when the call was streamed.
 - `response_model` and `backend_url` are your proof of *which* backend served the
   call (local Qwen vs. OpenAI).
@@ -189,22 +189,16 @@ codex exec "write a Python function that reverses a string"
 > `codex-rs/model-provider-info/src/lib.rs` now has a single variant,
 > `Responses` (the default), and `wire_api = "chat"` is rejected with an explicit
 > "chat wire API removed" error. So current Codex always POSTs to
-> `/v1/responses`. Older builds (and the task text) also supported
-> `wire_api = "chat"` → `/v1/chat/completions`. **CodexProbe handles both**: it
-> dispatches reassembly by request *path*, so whichever your Codex build speaks,
-> the recorder relays and reassembles it correctly. Your OSS backend must expose
-> the matching endpoint — see below.
+> `/v1/responses`, and CodexProbe targets that. The proxy itself forwards any
+> request byte-for-byte regardless of format; only the SSE *reassembly* step is
+> Responses-specific. Your OSS backend must expose `/v1/responses` — see below.
 
-### Responses vs. Chat Completions wire formats
+### The Responses wire format
 
-- **Responses API** (`POST /responses`): OpenAI's newer stateful protocol. Its
-  SSE stream is a sequence of typed events, and the terminal
-  `response.completed` event already carries the full `response` object — so
-  CodexProbe takes it directly.
-- **Chat Completions** (`POST /chat/completions`): the long-standing protocol
-  that local OSS servers (Ollama, vLLM) speak. Its SSE stream is many
-  `chat.completion.chunk` events with `choices[].delta`; CodexProbe merges the
-  content and tool-call argument fragments back together.
+- **Responses API** (`POST /responses`): OpenAI's newer protocol, and the only
+  one current Codex speaks. Its SSE stream is a sequence of typed events, and the
+  terminal `response.completed` event already carries the full `response` object
+  (with text and tool-call arguments assembled) — so CodexProbe takes it directly.
 
 ## Serving a local Qwen model (the backend swap)
 
@@ -370,5 +364,7 @@ What every captured call contains (the normally-opaque part):
   works. The logs are the diagnostic for exactly where and how any of these break.
 - The live run isn't exercised in CI (it needs a running Ollama and a `codex`
   binary); CI covers the proxy via the mock-backend tests.
-- The proxy assumes an OpenAI-compatible backend (Responses or Chat Completions).
+- The proxy assumes an OpenAI-compatible backend exposing `/v1/responses` (what
+  current Codex speaks). Passthrough is byte-agnostic; only SSE reassembly is
+  Responses-specific.
 - Loopback only by design; it forwards real auth upstream, so don't expose it.
